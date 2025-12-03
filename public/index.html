@@ -1970,7 +1970,9 @@ Trả về JSON:
       // This is the detailed work that DeepSeek excels at
       const providerForOutline = state.hybridMode ? 'deepseek' : state.textApiProvider;
       const limits = API_LIMITS[providerForOutline];
-      const outlineTokens = Math.min(limits.maxOutputTokens, state.panelsPerEpisode * 120 + 1500);
+      // Minimum 5000 tokens for DeepSeek in hybrid mode to avoid truncation
+      const calculatedTokens = state.panelsPerEpisode * 120 + 1500;
+      const outlineTokens = Math.min(limits.maxOutputTokens, Math.max(5000, calculatedTokens));
 
       console.log('📊 Using API:', limits.name, state.hybridMode ? '(Hybrid Mode - DeepSeek for panels)' : '');
       console.log('📊 Episode outline tokens:', outlineTokens);
