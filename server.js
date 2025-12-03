@@ -7,6 +7,7 @@ const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 3002;
+const HOST = process.env.HOST || '0.0.0.0';
 
 // ===========================================
 // STORY STORAGE - File-based JSON storage
@@ -73,7 +74,7 @@ app.post('/api/deepseek', async (req, res) => {
     const controller = new AbortController();
     const timeout = setTimeout(() => {
       controller.abort();
-    }, 120000); // 120 seconds timeout
+    }, 180000); // 180 seconds timeout
 
     const response = await fetch('https://api.deepseek.com/chat/completions', {
       method: 'POST',
@@ -136,9 +137,9 @@ app.post('/api/deepseek', async (req, res) => {
 
     // Handle different error types
     if (error.name === 'AbortError') {
-      console.error('❌ Request timeout (120s exceeded)');
+      console.error('❌ Request timeout (180s exceeded)');
       return res.status(504).json({
-        error: 'Request timeout. DeepSeek API took too long to respond (>120s).'
+        error: 'Request timeout. DeepSeek API took too long to respond (>180s).'
       });
     }
 
@@ -185,6 +186,12 @@ app.post('/api/gemini-text', async (req, res) => {
       contents.splice(1, 1); // Remove the duplicate
     }
 
+    // Create AbortController for timeout (180 seconds for large requests)
+    const controller = new AbortController();
+    const timeout = setTimeout(() => {
+      controller.abort();
+    }, 180000); // 180 seconds timeout
+
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${apiKey}`,
       {
@@ -200,9 +207,12 @@ app.post('/api/gemini-text', async (req, res) => {
             topP: 0.95,
             topK: 40
           }
-        })
+        }),
+        signal: controller.signal
       }
     );
+
+    clearTimeout(timeout);
 
     const data = await response.json();
 
@@ -239,6 +249,15 @@ app.post('/api/gemini-text', async (req, res) => {
 
   } catch (error) {
     console.error('💥 Gemini error:', error);
+
+    // Handle timeout
+    if (error.name === 'AbortError') {
+      console.error('❌ Request timeout (180s exceeded)');
+      return res.status(504).json({
+        error: 'Request timeout. Gemini API took too long to respond (>180s). Try reducing the number of episodes.'
+      });
+    }
+
     res.status(500).json({ error: error.message });
   }
 });
@@ -415,7 +434,7 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 Server running at http://localhost:${PORT}`);
+app.listen(PORT, HOST, () => {
+  console.log(`🚀 Server running at http://${HOST}:${PORT}`);
   console.log(`📱 TikTok Comic Generator is ready!`);
 });

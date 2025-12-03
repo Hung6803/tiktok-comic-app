@@ -553,6 +553,18 @@
         })
       });
 
+      // Check for timeout/proxy errors (returns HTML instead of JSON)
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const errorMessages = {
+          502: 'Bad Gateway (502). Server backend không phản hồi.',
+          503: 'Service Unavailable (503). Server đang quá tải.',
+          504: 'Gateway Timeout (504). Request quá lâu - hãy thử lại.',
+          524: 'Timeout (524). Cloudflare/Proxy timeout - hãy thử lại hoặc giảm số panels.'
+        };
+        throw new Error(errorMessages[response.status] || `Server error (${response.status}). Không nhận được JSON response.`);
+      }
+
       const data = await response.json();
 
       if (!response.ok) {
@@ -2118,7 +2130,7 @@ Trả về JSON:
 
       const data = await callTextAPI(systemPrompt, userPrompt, {
         temperature: 0.7,
-        max_tokens: 2500, // Panel descriptions can be verbose with character details
+        max_tokens: 8000, // Panel descriptions can be verbose with character details
         provider: providerForPanel
       });
 
@@ -2260,7 +2272,11 @@ STYLE NOTES:
             console.log('💾 Auto-saving series outline...');
             saveCurrentStory(true);
 
+            // STOP HERE - Let user choose which episode to generate
+            state.currentStep = 'idle';
+            console.log('⏸️ Series roadmap ready. User can now select an episode to generate.');
             render();
+            return; // Exit and wait for user to click "Tạo Episode X"
           }
 
           // Step 2: Generate current episode using two-stage
@@ -4768,13 +4784,18 @@ IMPORTANT: The product appears ONLY where the character is holding/using it - no
           </div>
 
           <!-- Current Episode Action Button -->
-          ${!state.episodes[state.currentEpisodeIndex] && state.currentStep === 'idle' ? `
+          ${!state.episodes[state.currentEpisodeIndex] && (state.currentStep === 'idle' || state.currentStep === 'error') ? `
             <div class="mt-6">
+              ${state.currentStep === 'error' && state.error ? `
+                <div class="mb-4 p-4 bg-red-500/10 border border-red-500/50 rounded-xl">
+                  <p class="text-red-300 text-sm">❌ Lỗi: ${state.error}</p>
+                </div>
+              ` : ''}
               <button
-                onclick="generateCurrentEpisode()"
+                onclick="state.error = ''; generateCurrentEpisode()"
                 class="w-full py-4 gradient-btn rounded-xl font-bold text-white text-lg transition-all transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-3"
               >
-                🚀 Tạo Episode ${state.currentEpisodeIndex + 1}: ${state.seriesOutline.episodes[state.currentEpisodeIndex]?.episode_title || 'N/A'}
+                ${state.currentStep === 'error' ? '🔄 Thử lại' : '🚀'} Tạo Episode ${state.currentEpisodeIndex + 1}: ${state.seriesOutline.episodes[state.currentEpisodeIndex]?.episode_title || 'N/A'}
               </button>
             </div>
           ` : ''}
